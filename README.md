@@ -1,15 +1,39 @@
 @Override
-    public ApplicationDto createApplicationService(ApplicationDto applicationDto)
-    {
-        log.info("Start Service createApplication with criteria: {}", applicationDto);
-        Application application = userMapper.fromDTOToApplication(applicationDto);
-        if (applicationRepository.findApplicationByAppName(application.getAppName()).isPresent()) {
-            throw new AGPortalException(APP_ALREADY_EXIST);
-        }
-        application.setDateCreation(LocalDateTime.now());
+public ApplicationDto createApplicationService(ApplicationDto applicationDto) {
+    log.info("Start Service createApplication with criteria: {}", applicationDto);
 
-        return userMapper.fromApplicationToDTO(applicationRepository.save(application));
+    // Null check for applicationDto
+    if (applicationDto == null) {
+        throw new IllegalArgumentException("ApplicationDto cannot be null");
     }
+
+    Application application = userMapper.fromDTOToApplication(applicationDto);
+
+    // Null check for application name
+    String appName = application.getAppName();
+    if (appName == null || appName.isEmpty()) {
+        throw new IllegalArgumentException("Application name cannot be null or empty");
+    }
+
+    // Check if application with the same name already exists
+    Optional<Application> existingApplication = applicationRepository.findApplicationByAppName(appName);
+    if (existingApplication.isPresent()) {
+        throw new AGPortalException(APP_ALREADY_EXIST);
+    }
+
+    application.setDateCreation(LocalDateTime.now());
+
+    // Save the application
+    Application savedApplication = applicationRepository.save(application);
+
+    // Null check for saved application
+    if (savedApplication == null) {
+        throw new RuntimeException("Failed to save application");
+    }
+
+    return userMapper.fromApplicationToDTO(savedApplication);
+}
+
 
     @Override
     public ApplicationDto updateApplication(ApplicationDto applicationDto) {
