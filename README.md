@@ -1,3 +1,20 @@
+<div class="chart-container">
+  <highcharts-chart
+    [Highcharts]="Highcharts"
+    [options]="splineChartOptions"
+    style="width: 100%; height: 400px;"
+  ></highcharts-chart>
+</div>
+
+<div class="chart-container">
+  <highcharts-chart
+    [Highcharts]="Highcharts"
+    [options]="pieChartOptions"
+    style="width: 100%; height: 400px;"
+  ></highcharts-chart>
+</div>
+
+
 import { Component, OnInit } from '@angular/core';
 import * as Highcharts from 'highcharts';
 import HC_exporting from 'highcharts/modules/exporting';
@@ -13,6 +30,9 @@ HC_exportData(Highcharts);
   styleUrls: ['./chart.component.css']
 })
 export class ChartComponent implements OnInit {
+  Highcharts: typeof Highcharts = Highcharts;
+  splineChartOptions: Highcharts.Options = {};
+  pieChartOptions: Highcharts.Options = {};
   users: User[] = [];
 
   constructor(private userService: UserService) { }
@@ -20,14 +40,30 @@ export class ChartComponent implements OnInit {
   ngOnInit(): void {
     this.userService.getUsers().subscribe((data: User[]) => {
       this.users = data;
-      // Vous pouvez maintenant utiliser les données pour créer vos graphiques Highcharts
-      this.createSplineChart();
-      this.createPieChart();
+      this.prepareChartData();
     });
   }
 
-  createSplineChart(): void {
-    Highcharts.chart('splineChart', {
+  prepareChartData(): void {
+    // Préparation des données pour le graphique en courbes (spline)
+    const splineCategories = this.users.map(user => user.firstName + ' ' + user.lastName);
+    const splineData = this.users.map(user => user.applications.length);
+
+    // Préparation des données pour le graphique à secteurs (pie)
+    const portalData = this.users.reduce((acc, user) => {
+      user.applications.forEach(app => {
+        acc[app.appName] = (acc[app.appName] || 0) + 1;
+      });
+      return acc;
+    }, {});
+
+    const pieData = Object.keys(portalData).map(appName => ({
+      name: appName,
+      y: portalData[appName]
+    }));
+
+    // Définition des options pour les graphiques
+    this.splineChartOptions = {
       chart: {
         type: 'spline'
       },
@@ -35,7 +71,7 @@ export class ChartComponent implements OnInit {
         text: 'Nombre d\'applications par utilisateur'
       },
       xAxis: {
-        categories: this.users.map(user => user.firstName + ' ' + user.lastName)
+        categories: splineCategories
       },
       yAxis: {
         title: {
@@ -44,25 +80,11 @@ export class ChartComponent implements OnInit {
       },
       series: [{
         name: 'Applications',
-        data: this.users.map(user => user.applications.length)
+        data: splineData
       }]
-    });
-  }
+    };
 
-  createPieChart(): void {
-    const portalData = this.users.reduce((acc, user) => {
-      user.applications.forEach(app => {
-        acc[app.appName] = (acc[app.appName] || 0) + 1;
-      });
-      return acc;
-    }, {});
-
-    const data = Object.keys(portalData).map(appName => ({
-      name: appName,
-      y: portalData[appName]
-    }));
-
-    Highcharts.chart('pieChart', {
+    this.pieChartOptions = {
       chart: {
         type: 'pie'
       },
@@ -71,8 +93,8 @@ export class ChartComponent implements OnInit {
       },
       series: [{
         name: 'Applications',
-        data: data
+        data: pieData
       }]
-    });
+    };
   }
 }
