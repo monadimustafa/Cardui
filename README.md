@@ -1,83 +1,169 @@
-import {Component, OnInit} from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import * as Highcharts from 'highcharts';
-import {DashboardService} from "../../service/dashboard.service";
-import {User} from "../../../../core/models/user.model";
+import { DataService } from './data.service'; // Adjust path as necessary
+
 @Component({
-  selector: 'portal-agregateur-pie-chart',
-  templateUrl: './pie-chart.component.html',
-  styleUrls: ['./pie-chart.component.scss']
+  selector: 'app-root',
+  templateUrl: './app.component.html',
+  styleUrls: ['./app.component.css']
 })
-export class PieChartComponent implements OnInit{
-  Highcharts: typeof Highcharts = Highcharts;
-  chartOptions: Highcharts.Options = {};
-  users!: [];
-  totalApps!: [];
-  constructor(private serviceUser : DashboardService) {
-  }
-  ngOnInit(): void {
-    this.getData();
-  }
-  getData(){
-    this.serviceUser.getUsers().subscribe((data: User[]) => {
-      this.users = data.map(user => user.firstName + ' ' + user.lastName) as [];
-      this.totalApps = data.map(user => user.applications?.length) as [];
-      console.log(this.users)
-      console.log(this.totalApps)
-      this.chartOptions = {
-        chart: {
-          type: 'column'
-        },
-        title: {
-          text: 'Nombre d\'applications par utilisateur'
-        },
-        xAxis: {
-          title:{
-            text : 'Utilisateurs'
-          },
-          categories: this.users
-        },
-        yAxis: {
-          title: {
-            text: 'Nombre d\'applications',
-          },
-        },
-        series: [{
-          data: this.users,
-          type : 'column'
-        }]
-      };
-    });
-  }
-  /*this.getData();
-      this.chartOptions = {
-        chart: {
-          type: 'column',
-        },
-        title: {
-          text: 'Nombre d\'applications par utilisateur',
-        },
-        xAxis: {
-          categories: this.users
-        },
-        yAxis: {
-          title: {
-            text: 'Nombre d\'applications',
-          },
-        },
-        series: [{
-          data: this.totalApps,
-          type: 'line'
-        }]
-      };
+export class AppComponent implements OnInit {
+  Highcharts: typeof Highcharts = Highcharts; // required
+  chartOptions: Highcharts.Options;
 
-  }
+  constructor(private dataService: DataService) {}
 
-  getData(){
-    this.serviceUser.getUsers().subscribe((data: User[]) => {
-      this.users = data.map(user => user.firstName + ' ' + user.lastName);
-      this.totalApps = data.map(user => user.applications?.length) as number[];
-      console.log(this.users)
-      console.log(this.totalApps)
-    });
-  }*/
+  ngOnInit() {
+    const countsTask = this.dataService.getCountsTask();
+    const statusTasks = this.dataService.getStatusTasks();
+
+    const data = statusTasks.map((status, index) => ({
+      name: status,
+      y: countsTask[index]
+    }));
+
+    this.chartOptions = {
+      chart: {
+        type: 'pie'
+      },
+      title: {
+        text: 'Task Status Counts'
+      },
+      plotOptions: {
+        pie: {
+          innerSize: '50%',
+          depth: 45
+        }
+      },
+      series: [{
+        type: 'pie',
+        name: 'Tasks',
+        data: data
+      }]
+    };
+  }
+}
+-------------------------------------------------
+
+import { Component, OnInit } from '@angular/core';
+import * as Highcharts from 'highcharts';
+import { DataService } from './data.service'; // Adjust path as necessary
+
+@Component({
+  selector: 'app-root',
+  templateUrl: './app.component.html',
+  styleUrls: ['./app.component.css']
+})
+export class AppComponent implements OnInit {
+  Highcharts: typeof Highcharts = Highcharts; // required
+  chartOptions: Highcharts.Options;
+
+  constructor(private dataService: DataService) {}
+
+  ngOnInit() {
+    const countsTask = this.dataService.getCountsTask();
+    const statusTasks = this.dataService.getStatusTasks();
+
+    const data = statusTasks.map((status, index) => ({
+      name: `${status}: ${countsTask[index]}`,
+      y: countsTask[index]
+    }));
+
+    this.chartOptions = {
+      chart: {
+        type: 'pie'
+      },
+      title: {
+        text: 'Task Status Counts'
+      },
+      plotOptions: {
+        pie: {
+          innerSize: '50%',
+          depth: 45,
+          dataLabels: {
+            enabled: true,
+            format: '<b>{point.name}</b>: {point.y}'
+          }
+        }
+      },
+      series: [{
+        type: 'pie',
+        name: 'Tasks',
+        data: data
+      }],
+      legend: {
+        align: 'right',
+        verticalAlign: 'middle',
+        layout: 'vertical',
+        itemMarginTop: 10,
+        itemMarginBottom: 10,
+        labelFormatter: function() {
+          return this.name;
+        }
+      }
+    };
+  }
+}
+---------------------------
+import { Component, OnInit } from '@angular/core';
+import * as Highcharts from 'highcharts';
+import { DataService } from './data.service'; // Adjust path as necessary
+
+@Component({
+  selector: 'app-root',
+  templateUrl: './app.component.html',
+  styleUrls: ['./app.component.css']
+})
+export class AppComponent implements OnInit {
+  Highcharts: typeof Highcharts = Highcharts; // required
+  chartOptions: Highcharts.Options;
+
+  constructor(private dataService: DataService) {}
+
+  ngOnInit() {
+    const countsTask = this.dataService.getCountsTask();
+    const statusTasks = this.dataService.getStatusTasks();
+
+    const data = statusTasks.map((status, index) => ({
+      name: status,
+      y: countsTask[index]
+    }));
+
+    this.chartOptions = {
+      chart: {
+        type: 'pie'
+      },
+      title: {
+        text: 'Task Status Counts'
+      },
+      plotOptions: {
+        pie: {
+          innerSize: '50%',
+          depth: 45,
+          dataLabels: {
+            enabled: true,
+            format: '<b>{point.name}</b>: {point.y}'
+          }
+        }
+      },
+      series: [{
+        type: 'pie',
+        name: 'Tasks',
+        data: data
+      }],
+      legend: {
+        align: 'right',
+        verticalAlign: 'middle',
+        layout: 'vertical',
+        itemMarginTop: 10,
+        itemMarginBottom: 10,
+        labelFormatter: function() {
+          const status = this.name;
+          const count = this.y;
+          return `<a href="https://example.com/status/${status}" target="_blank">${status}: ${count}</a>`;
+        },
+        useHTML: true
+      }
+    };
+  }
 }
