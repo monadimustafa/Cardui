@@ -1,169 +1,52 @@
-import { Component, OnInit } from '@angular/core';
-import * as Highcharts from 'highcharts';
-import { DataService } from './data.service'; // Adjust path as necessary
+countsTask : any;
+  statusTask : any;
+  getchart(param: Application):any {
+    this.countsTask  = [];
+    this.statusTask = [];
+    let compt = 0;
+    let data = null;
 
-@Component({
-  selector: 'app-root',
-  templateUrl: './app.component.html',
-  styleUrls: ['./app.component.css']
-})
-export class AppComponent implements OnInit {
-  Highcharts: typeof Highcharts = Highcharts; // required
-  chartOptions: Highcharts.Options;
+    param.tasks.forEach(request => {
+      let count = 0;
+      let stat = "";
+      count = request.count;
+      stat = request.status;
+      compt += count;
+      this.countsTask.push(count);
+      this.statusTask.push(stat);
+    });
 
-  constructor(private dataService: DataService) {}
-
-  ngOnInit() {
-    const countsTask = this.dataService.getCountsTask();
-    const statusTasks = this.dataService.getStatusTasks();
-
-    const data = statusTasks.map((status, index) => ({
+     data = this.statusTask.map((status : string, index: number) => ({
       name: status,
-      y: countsTask[index]
+      y: this.countsTask[index],
     }));
 
     this.chartOptions = {
-      chart: {
-        type: 'pie'
-      },
       title: {
-        text: 'Task Status Counts'
+        text: 'Total<br><span class="countTask">'+compt+' Tâches</span>',
+        align: 'center',
+        y: 60,
       },
       plotOptions: {
         pie: {
-          innerSize: '50%',
-          depth: 45
-        }
-      },
-      series: [{
-        type: 'pie',
-        name: 'Tasks',
-        data: data
-      }]
-    };
-  }
-}
--------------------------------------------------
-
-import { Component, OnInit } from '@angular/core';
-import * as Highcharts from 'highcharts';
-import { DataService } from './data.service'; // Adjust path as necessary
-
-@Component({
-  selector: 'app-root',
-  templateUrl: './app.component.html',
-  styleUrls: ['./app.component.css']
-})
-export class AppComponent implements OnInit {
-  Highcharts: typeof Highcharts = Highcharts; // required
-  chartOptions: Highcharts.Options;
-
-  constructor(private dataService: DataService) {}
-
-  ngOnInit() {
-    const countsTask = this.dataService.getCountsTask();
-    const statusTasks = this.dataService.getStatusTasks();
-
-    const data = statusTasks.map((status, index) => ({
-      name: `${status}: ${countsTask[index]}`,
-      y: countsTask[index]
-    }));
-
-    this.chartOptions = {
-      chart: {
-        type: 'pie'
-      },
-      title: {
-        text: 'Task Status Counts'
-      },
-      plotOptions: {
-        pie: {
-          innerSize: '50%',
-          depth: 45,
+          innerSize: '95%',
+          size: '130px',
+          slicedOffset : 50,
+          borderWidth: 0,
           dataLabels: {
-            enabled: true,
+            enabled: false,
             format: '<b>{point.name}</b>: {point.y}'
           }
         }
       },
       series: [{
         type: 'pie',
-        name: 'Tasks',
+        name: 'Tache ',
         data: data
       }],
-      legend: {
-        align: 'right',
-        verticalAlign: 'middle',
-        layout: 'vertical',
-        itemMarginTop: 10,
-        itemMarginBottom: 10,
-        labelFormatter: function() {
-          return this.name;
-        }
-      }
     };
+    return this.chartOptions;
   }
-}
----------------------------
-import { Component, OnInit } from '@angular/core';
-import * as Highcharts from 'highcharts';
-import { DataService } from './data.service'; // Adjust path as necessary
 
-@Component({
-  selector: 'app-root',
-  templateUrl: './app.component.html',
-  styleUrls: ['./app.component.css']
-})
-export class AppComponent implements OnInit {
-  Highcharts: typeof Highcharts = Highcharts; // required
-  chartOptions: Highcharts.Options;
-
-  constructor(private dataService: DataService) {}
-
-  ngOnInit() {
-    const countsTask = this.dataService.getCountsTask();
-    const statusTasks = this.dataService.getStatusTasks();
-
-    const data = statusTasks.map((status, index) => ({
-      name: status,
-      y: countsTask[index]
-    }));
-
-    this.chartOptions = {
-      chart: {
-        type: 'pie'
-      },
-      title: {
-        text: 'Task Status Counts'
-      },
-      plotOptions: {
-        pie: {
-          innerSize: '50%',
-          depth: 45,
-          dataLabels: {
-            enabled: true,
-            format: '<b>{point.name}</b>: {point.y}'
-          }
-        }
-      },
-      series: [{
-        type: 'pie',
-        name: 'Tasks',
-        data: data
-      }],
-      legend: {
-        align: 'right',
-        verticalAlign: 'middle',
-        layout: 'vertical',
-        itemMarginTop: 10,
-        itemMarginBottom: 10,
-        labelFormatter: function() {
-          const status = this.name;
-          const count = this.y;
-          return `<a href="https://example.com/status/${status}" target="_blank">${status}: ${count}</a>`;
-        },
-        useHTML: true
-      }
-    };
-  }
-}
+  Highcharts: typeof Highcharts = Highcharts;
+  chartOptions: Highcharts.Options = {};
