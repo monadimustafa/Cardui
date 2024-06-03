@@ -58,3 +58,31 @@ public List<ApplicationDto> getRequests(List<ApplicationDto> applicationsDto, St
     }
     return result;
 }
+
+
+fetchApplications() {
+    this.applicationService.getRequests(this.email).subscribe(
+      (result: ApplicationDto[]) => {
+        this.applications = result.map(application => {
+          if (application.tasks && application.tasks.length > 0) {
+            application['status'] = 'success'; // Tâches reçues
+          } else {
+            application['status'] = 'no-tasks'; // Pas de tâches
+          }
+          return application;
+        });
+      },
+      error => {
+        this.applications = this.applications.map(application => {
+          application['status'] = 'error'; // Erreur
+          return application;
+        });
+        this.handleError(error);
+      }
+    );
+  }
+
+  private handleError(error: any) {
+    console.error('Error fetching applications:', error);
+    // Vous pouvez ajouter des messages utilisateur ou d'autres actions ici
+  }
