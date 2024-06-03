@@ -1,52 +1,32 @@
-countsTask : any;
-  statusTask : any;
-  getchart(param: Application):any {
-    this.countsTask  = [];
-    this.statusTask = [];
-    let compt = 0;
-    let data = null;
+public List<ApplicationDto> getRequests(List<ApplicationDto> applicationsDto, String email)
+    {
+        RestTemplate restTemplate = new RestTemplate();
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        initializeTokenCC();
+        headers.add("Authorization", "Bearer "+getJwt());
+        HttpEntity<Map<String, Object>> httpEntity = new HttpEntity<>(headers);
 
-    param.tasks.forEach(request => {
-      let count = 0;
-      let stat = "";
-      count = request.count;
-      stat = request.status;
-      compt += count;
-      this.countsTask.push(count);
-      this.statusTask.push(stat);
-    });
-
-     data = this.statusTask.map((status : string, index: number) => ({
-      name: status,
-      y: this.countsTask[index],
-    }));
-
-    this.chartOptions = {
-      title: {
-        text: 'Total<br><span class="countTask">'+compt+' Tâches</span>',
-        align: 'center',
-        y: 60,
-      },
-      plotOptions: {
-        pie: {
-          innerSize: '95%',
-          size: '130px',
-          slicedOffset : 50,
-          borderWidth: 0,
-          dataLabels: {
-            enabled: false,
-            format: '<b>{point.name}</b>: {point.y}'
-          }
+        List<ApplicationDto> result = new ArrayList<>();
+        List<Task> tasks;
+        for(ApplicationDto applicationDto : applicationsDto)
+        {
+            String requestUrl = applicationDto.getLinkBack()+"/request/detail/"+email;
+            try
+            {
+                Task[] response = restTemplate.exchange(
+                        requestUrl,
+                        HttpMethod.GET,
+                        httpEntity,
+                        Task[].class
+                ).getBody();
+                tasks = Arrays.asList(response);
+            }
+            catch(Exception e){
+                tasks = new ArrayList<>();
+            }
+                 applicationDto.setTasks(tasks);
+                 result.add(applicationDto);
         }
-      },
-      series: [{
-        type: 'pie',
-        name: 'Tache ',
-        data: data
-      }],
-    };
-    return this.chartOptions;
-  }
-
-  Highcharts: typeof Highcharts = Highcharts;
-  chartOptions: Highcharts.Options = {};
+        return result;
+    }
