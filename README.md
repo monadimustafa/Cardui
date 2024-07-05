@@ -1,52 +1,46 @@
- ngOnInit(): void {
-    this.searchApplications();
-        interval(5*60*1000).subscribe(() => {
-        });
-    this.userInfos.getUserInfos().subscribe(value => {
-      this.role = value.role;
-    });
-  }
-  searchApplications() {
-    this.applications$ = this.service.getApplicationsByUser().pipe(tap(value => {
-      value.forEach(value => {
-        console.log("value " + value.appName);
-        this.searchTasksForApplication(value).subscribe(); // <--- Subscribe to the observable
-      })
+import { BehaviorSubject, Observable, of } from 'rxjs';
+import { catchError, concatMap, map, startWith, tap, toArray } from 'rxjs/operators';
+
+data$: BehaviorSubject<AppDataState<Task[]>> = new BehaviorSubject<AppDataState<Task[]>>({
+  dataState: DataStateEnum.LOADING
+});
+applications$!: Observable<Application[]>;
+
+searchApplications() {
+  this.applications$ = this.service.getApplicationsByUser().pipe(
+    tap(applications => {
+      this.data$.next({ dataState: DataStateEnum.LOADING });
+      
+      applications.pipe(
+        concatMap(application =>
+          this.searchTasksForApplication(application).pipe(
+            map(taskState => taskState.data)
+          )
+        ),
+        toArray() // Collect all results into an array
+      ).subscribe({
+        next: allTasks => {
+          const combinedTasks = allTasks.flat();
+          this.data$.next({ dataState: DataStateEnum.LOADED, data: combinedTasks });
+        },
+        error: err => {
+          this.data$.next({
+            dataState: DataStateEnum.ERROR,
+            errorMessage: err.message
+          });
+        }
+      });
+    })
+  );
+}
+
+searchTasksForApplication(param: Application): Observable<AppDataState<Task[]>> {
+  return this.service.getTasksForApplication(param).pipe(
+    map(response => ({ dataState: DataStateEnum.LOADED, data: response })),
+    startWith({ dataState: DataStateEnum.LOADING }),
+    catchError(err => of({
+      dataState: DataStateEnum.ERROR,
+      errorMessage: err.message
     }))
-  }
-
-  searchTasksForApplication(param: Application): Observable<AppDataState<Task[]>> {
-    return this.service.getTasksForApplication(param).pipe(
-      map(response => ({ dataState: DataStateEnum.LOADED, data: response })),
-      startWith({ dataState: DataStateEnum.LOADING }),
-      catchError(err => of({
-        dataState: DataStateEnum.ERROR,
-        errorMessage: err.message,
-        // this: this.showToast('Une erreur technique est survenue', "Erreur", "danger")
-      }))
-    );
-  }
-/*  searchApplications() {
-    this.applications$ = this.service.getApplicationsByUser().pipe(tap(value => {
-      value.forEach(value => {
-        console.log("value "+value.appName);
-        this.searchTasksForApplication(value);
-      })
-    }))
-  }
-
-
-  searchTasksForApplication(param:Application){
-    this.service.getTasksForApplication(param).pipe(map(response => {
-        return ({dataState: DataStateEnum.LOADED, data: response})
-      }),
-      startWith({dataState: DataStateEnum.LOADING}),
-      catchError(err => of({
-        dataState: DataStateEnum.ERROR,
-        errorMessage: err.message,
-        //this: this.showToast('Une erreur technique est survenue', "Erreur", "danger")
-      })))
-  }
-  showToast(message: string, title: string, status: string) {
-    return this.toastrService.show(message, title, {status, duration: 0});
-  }*/
+  );
+}
