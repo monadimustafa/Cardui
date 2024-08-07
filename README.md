@@ -1,102 +1,69 @@
-<nb-card accent="primary" class="controls">
-  <nb-card-header>
-    <h5 class="title-animation card-title text-uppercase my-auto p-2">Charger la demande de clôture du compte</h5>
-  </nb-card-header>
-  <nb-card-body>
-    <form [formGroup]="loadFileFormGroup" novalidate>
-    <div class="d-flex justify-content-center box">
-      <div class="w-50">
-        <div class="upload-container">
-          <div class="upload-box" id="drop-area">
-            <label for="fileElem" class="m-auto w-100">
-              <input (change)="onFileSelected($event)" type="file" id="fileElem" #fileElem
-                                    accept="image/png, image/jpeg, application/vnd.openxmlformats-officedocument.wordprocessingml.document, application/pdf"
-            >
-              <div class="upload-box-img">
-                <nb-icon icon="file-excel-2-line">
-                </nb-icon>
-              </div>
-              <div class="upload-box-description">
-                <p>Faites glisser et déposez un fichier ici ou <span
-                  class="fw-bold text-danger">choisissez un fichier</span><br>
-                  <span class="text-muted">Pdf, docx, jpg, png (10 MB Max) par fichier</span></p>
-              </div>
-            </label>
-          </div>
-          <br>
-          <div *ngIf="isUploading" class="upload-progess d-flex justify-content-between shadow d-flex flex-row">
-            <div class=" col-lg-1 upload-progress-icon my-auto">
-              <nb-icon icon="file-text-line"></nb-icon>
-            </div>
-            <div class="col-md-8 col-lg-10 upload-progress-values my-auto">
-              <div class="file-name fw-bold">{{fileName}}</div>
-              <div class="file-size text-muted">{{fileSize}}</div>
-              <div class="progress-bar w-100">
-                <div [ngStyle]="{width: (progress)+'%'}" class="progress-bar-value"></div>
-              </div>
-            </div>
-            <div (click)="onRestMask()" class="col-lg-1 cancel-icon my-auto">
-              <nb-icon icon="close-line"></nb-icon>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    </form>
-  </nb-card-body>
-  <nb-card-footer>
-    <div class="d-flex flex-row justify-content-between">
-      <button (click)="cancel()" type="button" class="btn btn-outline-danger">Abandonner</button>
-      <button (click)="createRequest()" type="button" class="btn btn-dark">Soumettre</button>
-    </div>
-  </nb-card-footer>
-</nb-card>
+import { Component, OnInit } from '@angular/core';
+import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';
+import { catchError, map, of, startWith } from 'rxjs';
 
-onFileSelected($event: any) {
-    this.sendFile = true;
+@Component({
+  selector: 'app-file-upload',
+  templateUrl: './file-upload.component.html',
+  styleUrls: ['./file-upload.component.scss']
+})
+export class FileUploadComponent implements OnInit {
+  loadFileFormGroup: FormGroup;
+  isUploading = false;
+  fileName = '';
+  fileSize = '';
+  progress = 0;
+  selectedFile: File | null = null;
+  sendFile = false;
+  sccRequest$: any;
+
+  constructor(private fb: FormBuilder, private http: HttpClient) {}
+
+  ngOnInit(): void {
+    this.initProcessFormGroup();
+  }
+
+  onFileSelected($event: any) {
     this.selectedFile = $event.target.files[0];
     if (this.selectedFile) {
-      this.isUploading = true
-      this.fileSize = this.utilsService.formatBytes(this.selectedFile.size, 2)
+      this.fileSize = (this.selectedFile.size / 1024 / 1024).toFixed(2) + ' MB';
       this.fileName = this.selectedFile.name;
-      const reader = new FileReader();
-      reader.onload = (e) => {
-      };
-      reader.onprogress = (e) => {
-        this.progress = Math.round((e.loaded / e.total) * 100);
-        this.utilsService.delayExecution(1500, () => {
-          this.sendFile = true;
-          console.log("sndFile boolean "+this.sendFile)
-        });
-      };
-      reader.readAsDataURL(this.selectedFile);
     }
   }
 
-  sendFiles(id: number) {
-        const formData = new FormData();
-        formData.append('file', this.selectedFile, this.selectedFile.name);
-        this.demandeService.initRequest(formData,id).pipe(
-          map(response => {
-            //this.utilsService.delayExecution(1000, () => {
-            this.initProcessFormGroup();
-            this.isUploading = false
-            if (response.status == "REJECTED") {
-              this.utilsService.displayError("Erreur", "Le fichier chargé contient des erreurs !")
-            } else {
-              this.utilsService.displaySucess("Succès ", "Fichier envoyé pour traitement")
-            }
-            //});
-            this.openDialog(response);
-            return ({dataState: DataStateEnum.LOADED, data: response})
-          }),
-          startWith({dataState: DataStateEnum.LOADING}),
-          catchError(err => of({
-            dataState: DataStateEnum.ERROR,
-            // errorMessage: err.message,
-            // this: this.utilsService.displayError(err.error.message, 'Erreur'),
-          }))).subscribe((appState) => (this.sccRequest$ = appState));
+  createRequest(): void {
+    if (this.loadFileFormGroup.valid && this.selectedFile) {
+      const requestData: DemandeClosAccountDTO = {
+        clientDto: { /* client data */ },
+        ribs: [/* array of RIBs */],
+        motif: this.form.motif.value,
+        date: new Date()
+      };
+      this.sendFiles(requestData);
+    } else {
+      console.error("Form is invalid or file is not selected");
     }
+  }
+
+  sendFiles(requestData: DemandeClosAccountDTO) {
+    const formData = new FormData();
+    formData.append('file', this.selectedFile!, this.selectedFile!.name);
+    formData.append('demande', new Blob([JSON.stringify(requestData)], { type: 'application/json' }));
+
+    this.http.post('/api/request-endpoint', formData).pipe(
+      map(response => {
+        this.initProcessFormGroup();
+        this.isUploading = false;
+        // Handle success
+      }),
+      catchError(err => {
+        // Handle error
+        return of(err);
+      })
+    ).subscribe();
+  }
+
   get form() {
     return this.loadFileFormGroup.controls;
   }
@@ -104,29 +71,62 @@ onFileSelected($event: any) {
   initProcessFormGroup() {
     this.loadFileFormGroup = this.fb.group({
       motif: ["", Validators.required]
-    })
+    });
   }
-
-  openDialog(data: SccRequest) {
-    const buttonsConfig: NbWindowControlButtonsConfig = {
-      minimize: false,
-      maximize: false,
-      fullScreen: false,
-      close: false,
-
-    }
-  }
-
-  export interface DemandeClosAccountDTO {
-  clientDto ?: Client;
-  ribs ?: string[];
-  motif ?: string;
-  date ?: Date;
 }
-export interface Client{
-  codeClient?: string,
-  nomOrRs?: string,
-  cinOrRc?: string,
-  agence?: string,
-  rib: string
+
+export interface DemandeClosAccountDTO {
+  clientDto?: Client;
+  ribs?: string[];
+  motif?: string;
+  date?: Date;
+}
+
+export interface Client {
+  codeClient?: string;
+  nomOrRs?: string;
+  cinOrRc?: string;
+  agence?: string;
+  rib: string;
+}
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.bind.annotation.RequestPart;
+
+@RestController
+@RequestMapping("/api")
+public class RequestController {
+
+    @PostMapping("/request-endpoint")
+    public ResponseEntity<?> handleFileUpload(
+            @RequestPart("file") MultipartFile file,
+            @RequestPart("demande") DemandeClosAccountDTO demandeClosAccountDTO) {
+
+        // Process the file and demandeClosAccountDTO
+        System.out.println("File received: " + file.getOriginalFilename());
+        System.out.println("Request data: " + demandeClosAccountDTO);
+
+        return ResponseEntity.ok("File and data received successfully");
+    }
+}
+
+class DemandeClosAccountDTO {
+    private Client clientDto;
+    private String[] ribs;
+    private String motif;
+    private Date date;
+
+    // Getters and setters
+}
+
+class Client {
+    private String codeClient;
+    private String nomOrRs;
+    private String cinOrRc;
+    private String agence;
+    private String rib;
+
+    // Getters and setters
 }
