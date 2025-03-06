@@ -1,87 +1,102 @@
-import { PDFDocument, rgb } from 'pdf-lib';
+ @GetMapping("/requests")
+    @Operation(summary = "Get all requests",
+            description = "This resource is used to get all SCC request",
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Successful operation, check payload content")
+            })
+    public ResponseEntity<Page<SccRequestDto>> getAllRequest(@RequestParam(name = "pageNumber", defaultValue = "0", required = false) int pageNumber,
+                                                             @RequestParam(name = "pageSize", defaultValue = "10", required = false) int pageSize,
+                                                             @RequestParam(name = "sortValue", defaultValue = "id", required = false) String sortValue,
+                                                             @RequestParam(name = "sortDirection", defaultValue = "DESC", required = false) String sortDirection,
+                                                             @RequestParam(name = "requestRef", required = false) final String requestRef,
+                                                             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime createdAtFrom,
+                                                             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime createdAtTo,
+                                                             @RequestParam(name = "createdAt", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) final LocalDateTime createdAt,
+                                                             @RequestParam(name = "id", required = false) String id,
+                                                             @RequestParam(name = "customerNumber", required = false) String customerNumber,
+                                                             @RequestParam(name = "displayName", required = false) String displayName,
+                                                             @RequestParam(name = "codeAgence", required = false) String codeAgence,
+                                                             @RequestParam(value = "accountNumber", required = false) String accountNumber,
+                                                             @RequestParam(value = "requestStatus", required = false) String requestStatus,
+                                                             @RequestParam(value = "soldCompte", required = false) BigDecimal soldCompte,
+                                                             @RequestHeader(name = "X-USER", required = false) String userEmail) {
+        SccRequestSearchDto sccRequestSearchDto = SccRequestSearchDto.builder()
+                .requestRef(requestRef)
+                .createdAt(createdAt)
+                .createdAtFrom(createdAtFrom)
+                .createdAtTo(createdAtTo)
+                .id(id)
+                .customerNumber(customerNumber)
+                .displayName(displayName)
+                .codeAgence(codeAgence)
+                .accountNumber(accountNumber)
+                .requestStatus(requestStatus)
+                .soldCompte(soldCompte)
+                .build();
 
-async generateClosureRequest(listSelectedAccount: BankAccountAggregateDto[]): Promise<Uint8Array> {
-    const pdfDoc = await PDFDocument.create();
-    const page = pdfDoc.addPage([600, 800]);
+        Page<SccRequestDto> portalRequests = iSccRequest.findRequestByCriteria(sccRequestSearchDto, PageRequest.of(pageNumber, pageSize, Sort.by(Sort.Direction.DESC,"createdAt")));
+        return ResponseEntity.ok(portalRequests);
+    }
 
-    const { width, height } = page.getSize();
-    const fontSize = 12;
-    let textY = height - 60; // Position Y de départ
+    public Page<SccRequestDto> findRequestByCriteria(SccRequestSearchDto sccRequestSearchDto , Pageable pageable){
 
-    // Supposons que listSelectedAccount contient plusieurs comptes
-    const account = listSelectedAccount[0];
 
-    // **Titre : Objet et Date**
-    page.drawText('Objet : Demande de clôture de compte', {
-        x: 150,
-        y: textY,
-        size: 14,
-        color: rgb(0, 0, 0),
-    });
-    textY -= 20;
+        CriteriaBuilder cb= em.getCriteriaBuilder();
+        CriteriaQuery<SccRequest> cq=cb.createQuery(SccRequest.class);
+        Root<SccRequest> root= cq.from(SccRequest.class);
 
-    page.drawText(`Date de création : ${new Date().toLocaleDateString()}`, {
-        x: 150,
-        y: textY,
-        size: fontSize,
-        color: rgb(0, 0, 0),
-    });
-    textY -= 30;
+        List<Predicate> andPredicate=new ArrayList<>();
 
-    // **Informations du client**
-    const clientText = [
-        `Je soussigné(e) Mme – Mlle – M. ${account.displayName},`,
-        `Titulaire de la CIN : ${account.cin},`,
-        `Autorise la SOCIETE GENERALE MAROCAINE DE BANQUE à fermer mon compte`,
-        `Numéro de compte : ${account.rib}`,
-    ];
+        if (sccRequestSearchDto != null){
+             if (sccRequestSearchDto.getRequestRef() != null) {
+                Predicate matriculePredicate=cb.like(root.get("requestRef"),"%"+sccRequestSearchDto.getRequestRef()+"%");
+                andPredicate.add(matriculePredicate);
+                 if (sccRequestSearchDto.getCreatedAtFrom() != null && sccRequestSearchDto.getCreatedAtTo() != null){
+                     Predicate createdAtPredicate=cb.between(root.get("createdAt"),sccRequestSearchDto.getCreatedAtFrom(),sccRequestSearchDto.getCreatedAtTo());
+                     andPredicate.add(createdAtPredicate);}
+             }if (sccRequestSearchDto.getId() != null){
+                Predicate prenomPredicate=cb.like(root.get("id"),"%"+sccRequestSearchDto.getId()+"%");
+                andPredicate.add(prenomPredicate);
+            }if (sccRequestSearchDto.getCustomerNumber() != null) {
+                Predicate affectationFinaleActuellePredicate = cb.like(root.get("bankAcountAggregate").get("customerNumber"), "%" + sccRequestSearchDto.getCustomerNumber() + "%");
+                andPredicate.add(affectationFinaleActuellePredicate);
+            }if (sccRequestSearchDto.getDisplayName() != null){
+                Predicate affectationN3Predicate=cb.like(root.get("bankAcountAggregate").get("displayName"),"%"+sccRequestSearchDto.getDisplayName()+"%");
+                andPredicate.add(affectationN3Predicate);
+            }
+            if (sccRequestSearchDto.getCodeAgence() != null){
+                Predicate affectationN3Predicate=cb.like(root.get("bankAcountAggregate").get("codeAgence"),"%"+sccRequestSearchDto.getCodeAgence()+"%");
+                andPredicate.add(affectationN3Predicate);
+            }
+            if (sccRequestSearchDto.getAccountNumber() != null){
+                Predicate affectationN3Predicate=cb.like(root.get("bankAcountAggregate").get("accountNumber"),"%"+sccRequestSearchDto.getAccountNumber()+"%");
+                andPredicate.add(affectationN3Predicate);
+            }
+            if (sccRequestSearchDto.getSoldCompte() != null){
+                Predicate affectationN3Predicate=cb.like(root.get("bankAcountAggregate").get("soldCompte"),"%"+sccRequestSearchDto.getSoldCompte()+"%");
+                andPredicate.add(affectationN3Predicate);
+            }
+            if (sccRequestSearchDto.getRequestStatus() != null){
+                Predicate affectationN3Predicate=cb.equal(root.get("requestStatus"), RequestStatus.valueOf(sccRequestSearchDto.getRequestStatus()));
+                andPredicate.add(affectationN3Predicate);
+            }
 
-    clientText.forEach(line => {
-        page.drawText(line, { x: 50, y: textY, size: fontSize, color: rgb(0, 0, 0) });
-        textY -= 20;
-    });
 
-    textY -= 20; // Espacement avant le tableau
+            cq.where(cb.and(andPredicate.toArray(new Predicate[0])));
 
-    // **Tableau RIB et Motif**
-    page.drawText('RIB', { x: 50, y: textY, size: fontSize, color: rgb(0, 0, 0) });
-    page.drawText('Motif de clôture', { x: 250, y: textY, size: fontSize, color: rgb(0, 0, 0) });
-    textY -= 20;
+            return getRequest(cq,pageable);
 
-    listSelectedAccount.forEach(value => {
-        page.drawText(value.rib, { x: 50, y: textY, size: fontSize, color: rgb(0, 0, 0) });
-        page.drawText(value.motifCloture, { x: 250, y: textY, size: fontSize, color: rgb(0, 0, 0) });
-        textY -= 20; // Décaler la ligne suivante
-    });
+        }else {
+            return getRequest(cq,pageable);
+        }
 
-    textY -= 30; // Espacement après le tableau
-
-    // **Texte de clôture**
-    const closingText = [
-        "Je m’engage en outre, à accomplir, s’il y a lieu, toute formalité que la SOCIETE GENERALE",
-        "Marocaine de Banques jugera utile au bon déroulement de l’opération de clôture et renonce",
-        "à toutes les facilités qui ont pu m’être octroyées sur ce compte.",
-        "",
-        "Nous notons votre engagement à accomplir, s’il y a lieu, toute formalité que la SOCIETE GENERALE",
-        "MAROCAINE DE BANQUES jugera utile au bon déroulement de l’opération de clôture ainsi que",
-        "votre renonciation à toutes les facilités qui ont pu être octroyées sur le compte sus-indiqué.",
-        "",
-        "Nous vous rappelons que suite à votre demande de clôture de compte, vous devez procéder",
-        "immédiatement au changement de domiciliation de vos éventuels prélèvements automatiques",
-        "précédemment domiciliés sur ce compte.",
-    ];
-
-    closingText.forEach(line => {
-        page.drawText(line, { x: 50, y: textY, size: fontSize, color: rgb(0, 0, 0) });
-        textY -= 20;
-    });
-
-    textY -= 40; // Espacement avant la signature
-
-    // **Signature**
-    page.drawText('Signature :', { x: 50, y: textY, size: fontSize, color: rgb(0, 0, 0) });
-
-    // Générer le PDF
-    const pdfBytes = await pdfDoc.save();
-    return pdfBytes;
-}
+    }
+    private Page<SccRequestDto> getRequest(CriteriaQuery<SccRequest> cq, Pageable pageable) {
+        TypedQuery<SccRequest> tq= em.createQuery(cq);
+        tq.setFirstResult((int) pageable.getOffset());
+        tq.setMaxResults(pageable.getPageSize());
+        int totalRows=sccRepo.findAll().size();
+        List<SccRequestDto> requestList =mapper.toListDtos(tq.getResultList());
+        Page<SccRequestDto> requestDtoPage=new PageImpl<>(requestList, pageable,totalRows);
+        return requestDtoPage;
+    }
