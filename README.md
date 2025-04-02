@@ -1,66 +1,90 @@
-    private List<ProcessCCDTO> checkTempProvisionWithEnoughBalance() {
-        log.info("Start Service checkTempProvisionWithEnoughBalance at : {}", LocalDateTime.now());
+public class FileWatcher {
+    private final OrchestratorService service;
+    public List<String> directories = Arrays.asList(
+Make directories a static final constant or non-public and provide accessors if needed.
+Why is this an issue?
 
-        List<TempProvision> tempProvisions = tempProvisionRepository.findByCheckInAfterAndExecutedIsFalse(LocalDateTime.now().minusDays(5));
-        log.info("Number of element matching 5 days criteria : {}", tempProvisions.size());
+7 days ago
+L34
+Code Smell
+Minor
 
-        List<ProcessCCDTO> processCCList = new ArrayList<>();
-        for (TempProvision tempProvision : tempProvisions) {
-            try {
-                log.info("Start Calling Account Service with params: Account Number: {}, Branch Code: {}", tempProvision.getNCompte(), tempProvision.getBranchCode());
-                AccountDetailDTO accountDetailDTO = accountFeignClient.getAccountDetails(tempProvision.getNCompte(), tempProvision.getBranchCode(), "000");
-                BigDecimal availableBalance = accountDetailDTO.getAvailableBalance();
-                ProcessCC processCC = processCCService.findFirstByUuid(tempProvision.getProcessUuid());
-                processCC.setAvailableBalance(availableBalance != null ? availableBalance.toString() : "-1");
+Open
 
-                BigDecimal orderValue = new BigDecimal(processCC.getMontantSansFrais());
-                BigDecimal accountValue = new BigDecimal(processCC.getAvailableBalance());
+BAHBAH Mustapha
+10min effort
 
-                if (orderValue.compareTo(accountValue) > 0) {
-                    log.info("Account Without enough balance: {}, Required Balance: {}, Found balance: {} "
-                            , tempProvision.getNCompte(), processCC.getMontantSansFrais(), processCC.getAvailableBalance());
-                    tempProvisionRepository.save(TempProvision.builder()
-                            .id(tempProvision.getId())
-                            .availableBalance(availableBalance)
-                            .branchCode(tempProvision.getBranchCode())
-                            .checkIn(tempProvision.getCheckIn())
-                            .processUuid(processCC.getUuid())
-                            .nCompte(tempProvision.getNCompte())
-                            .overFiveDays(tempProvision.isOverFiveDays())
-                            .build());
-                } else {
-                    log.info("Account With enough balance: {}, Required Balance: {}, Found balance: {} "
-                            , tempProvision.getNCompte(), processCC.getMontantSansFrais(), processCC.getAvailableBalance());
-                    TempProvision updateTempProvision = tempProvisionRepository.save(TempProvision.builder()
-                            .id(tempProvision.getId())
-                            .availableBalance(availableBalance)
-                            .branchCode(tempProvision.getBranchCode())
-                            .checkIn(tempProvision.getCheckIn())
-                            .executed(true)
-                            .nCompte(tempProvision.getNCompte())
-                            .overFiveDays(tempProvision.isOverFiveDays())
-                            .processUuid(tempProvision.getProcessUuid())
-                            .build());
-                    log.info("updateTempProvision: {}", updateTempProvision.toString());
-                    processCCList.add(portalProcessMapper.fromProcessCCToDTO(processCC));
-                }
-            } catch (Exception e) {
-                log.error("Exception Occurred when calling Customer Service for Account: {}", tempProvision.getNCompte());
-                log.error(e.getMessage());
-                TempProvision exceptionTempProvision = tempProvisionRepository.save(TempProvision.builder()
-                        .id(tempProvision.getId())
-                        .availableBalance(tempProvision.getAvailableBalance())
-                        .branchCode(tempProvision.getBranchCode())
-                        .checkIn(tempProvision.getCheckIn())
-                        .executed(tempProvision.isExecuted())
-                        .nCompte(tempProvision.getNCompte())
-                        .overFiveDays(tempProvision.isOverFiveDays())
-                        .processUuid(tempProvision.getProcessUuid())
-                        .build());
-                log.info("exceptionTempProvision: {}", exceptionTempProvision.toString());
+Comment
 
+cwe
+            "/data/RPA/ATD/input",
+            "/data/RPA/CC/input",
+            "/data/RPA/DDR/input",
+            "/data/RPA/RES/input",
+            "/data/RPA/SA/input",
+            "/data/RPA/SCC/input"
+    );
+    @Scheduled(cron = "${rpa-portal.seed.orchestrator.cron}")
+    public void checkInputDirectoriesForNewFiles() throws IOException, InvalidFormatException {
+        log.info("[FileWatcher - checkInputDirectoriesForNewFiles] start");
+        for (String directory : directories) {
+            File[] files = new File(directory).listFiles();
+            if (files != null) {
+                for (File file : files) {
+                    if(file.isFile()){
+                        log.info("[FileWatcher - checkInputDirectoriesForNewFiles] Found A new File: {}", file.getAbsolutePath());
+                        Workbook workbook ;
+                        int fileLenght=0;
+                        Sheet sheet;
+                        if(file.getParentFile().getParentFile().getName().equals("ATD"))
+                        {
+                            workbook = new XSSFWorkbook(file);
+                            sheet = workbook.getSheet("Nouvelle ATD");
+                            fileLenght = sheet.getLastRowNum();
+                        }
+                        else if(file.getParentFile().getParentFile().getName().equals("CC"))
+                        {
+                            FileReader fileReader = new FileReader(file.getAbsolutePath());
+                            CSVParser parser = new CSVParser(fileReader, CSVFormat.RFC4180
+                                    .withHeader(this.headersCC())
+                                    .withIgnoreEmptyLines()
+                                    .withDelimiter(';')
+                                    .withFirstRecordAsHeader());
+                            fileLenght=parser.getRecords().size();
+                            fileReader.close();
+                        }
+                        else
+                        {
+                            workbook = new XSSFWorkbook(file);
+                            sheet = workbook.getSheetAt(0);
+                            fileLenght = sheet.getLastRowNum();
+                        }
+                        boolean dicision = service.takeDecision(fileLenght, file.getParentFile().getParentFile().getName());
+                        if(dicision)
+                            moveFile(file.getAbsolutePath(), file.getParentFile().getParentFile() + "/archive");
+                    }
+                    else{
+                        log.info("[FileWatcher - checkInputDirectoriesForNewFiles] not found");
+                    }
+                    }
             }
         }
-
-        return processCCList;
+        log.info("[FileWatcher - checkInputDirectoriesForNewFiles] End");
     }
+    String[] headersCC() {
+        return new String[]{TYPE_MESSAGE, MODULE, BIC_DONNEUR_ORDER, NUM_CHRONO, MESSAGE_20, STATUT, DATE_INTEGRATION,
+                DATE_VALEUR, CODE_BIC_BANQUE, RIB_BENEFICIAIRE, NOM_BENEFICIAIRE, MESSAGE_52A, NATURE_FRAIS, MONTANT_SANS_FRAIS, MOTIF_OPERATION};
+    }
+    public void moveFile(String filePath, String target) {
+        Path sourcePath = Paths.get(filePath);
+        Path targetPath = Paths.get(target);
+        try {
+            // Move the file
+            Files.move(sourcePath, targetPath.resolve(sourcePath.getFileName()), StandardCopyOption.REPLACE_EXISTING);
+            log.info("File with path {} moved successfully to {}", filePath, target);
+        } catch (IOException e) {
+            e.printStackTrace();
+            log.error("Error moving the file {} to {}", filePath, target);
+        }
+    }
+}
