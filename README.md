@@ -1,70 +1,105 @@
-@Scheduled(cron = "${rpa-portal.seed.orchestrator.cron}")
-    public void checkInputDirectoriesForNewFiles() throws IOException, InvalidFormatException {
-        log.info("[FileWatcher - checkInputDirectoriesForNewFiles] start");
-        for (String directory : directories) {
-            File[] files = new File(directory).listFiles();
-            if (files != null) {
-                for (File file : files) {
-                    if(file.isFile()){
-                        log.info("[FileWatcher - checkInputDirectoriesForNewFiles] Found A new File: {}", file.getAbsolutePath());
-                        Workbook workbook ;
-                        int fileLenght=0;
-                        Sheet sheet;
-                        if(file.getParentFile().getParentFile().getName().equals("ATD")) {
-                            try (XSSFWorkbook workbookResource = new XSSFWorkbook(file)) {
-                                workbook = workbookResource;
-                                sheet = workbook.getSheet("Nouvelle ATD");
-                                fileLenght = sheet.getLastRowNum();
-                            }
-                             catch (IOException e) {
-                                    e.printStackTrace(); // Handle exception appropriately
-                                    log.error("Error processing workbook for file {}: {}", file.getAbsolutePath(), e.getMessage());
-                                }
-                        }
-                        else if(file.getParentFile().getParentFile().getName().equals("CC"))
-                        {
-                            try(FileReader fileReader = new FileReader(file.getAbsolutePath())){
-                                CSVParser parser = new CSVParser(fileReader, CSVFormat.RFC4180
-                                        .withHeader(this.headersCC())
-                                        .withIgnoreEmptyLines()
-                                        .withDelimiter(';')
-                                        .withFirstRecordAsHeader());
-                                fileLenght=parser.getRecords().size();
-                            }
-                            catch (IOException e) {
-                                e.printStackTrace(); // Handle exception appropriately
-                                log.error("Error processing CSV for file {}: {}", file.getAbsolutePath(), e.getMessage());
-                            }
-                        }
-                        else
-                        {
-                            workbook = new XSSFWorkbook(file);
-                            sheet = workbook.getSheetAt(0);
-                            fileLenght = sheet.getLastRowNum();
-                        }
-                        boolean dicision = service.takeDecision(fileLenght, file.getParentFile().getParentFile().getName());
-                        if(dicision)
-                            moveFile(file.getAbsolutePath(), file.getParentFile().getParentFile() + "/archive");
-                    }
-                    else{
-                        log.info("[FileWatcher - checkInputDirectoriesForNewFiles] not found");
-                    }
-                    }
-            }
-        }
-        log.info("[FileWatcher - checkInputDirectoriesForNewFiles] End");
-    }
-    public void moveFile(String filePath, String target) throws IOException {
-        Path sourcePath = Paths.get(filePath);
-        Path targetPath = Paths.get(target);
+Dimport static org.mockito.Mockito.*;
+import static org.junit.Assert.*;
 
-        try {
-            // Move the file
-            Files.move(sourcePath, targetPath.resolve(sourcePath.getFileName()), StandardCopyOption.REPLACE_EXISTING);
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.commons.csv.*;
+import org.junit.Before;
+import org.junit.Test;
+import org.mockito.*;
 
-            log.info("File with path {} moved successfully to {}", filePath, target);
-        } catch (IOException e) {
-            log.error("Error moving the file {} to {}", filePath, target, e);
-            throw e; // Rethrow the IOException
-        }
+import java.io.*;
+import java.nio.file.*;
+import java.util.*;
+
+public class FileWatcherTest {
+
+    @Mock
+    private FileWatcherService service;
+
+    @InjectMocks
+    private FileWatcher fileWatcher;
+
+    @Mock
+    private File file;
+
+    @Mock
+    private XSSFWorkbook workbook;
+
+    @Mock
+    private CSVParser csvParser;
+
+    @Mock
+    private Sheet sheet;
+
+    private List<String> directories;
+    private String testDirectory = "testDir";
+
+    @Before
+    public void setUp() {
+        MockitoAnnotations.initMocks(this);
+        directories = new ArrayList<>();
+        directories.add(testDirectory);
     }
+
+    @Test
+    public void testCheckInputDirectoriesForNewFiles_XSSFWorkbook() throws Exception {
+        // Arrange
+        String fileName = "testFile.xlsx";
+        when(file.getName()).thenReturn(fileName);
+        when(file.isFile()).thenReturn(true);
+        when(file.getParentFile()).thenReturn(new File("ATD"));
+        when(file.getAbsolutePath()).thenReturn(testDirectory + "/" + fileName);
+
+        XSSFWorkbook mockWorkbook = mock(XSSFWorkbook.class);
+        Sheet mockSheet = mock(Sheet.class);
+        when(mockWorkbook.getSheet("Nouvelle ATD")).thenReturn(mockSheet);
+        when(mockSheet.getLastRowNum()).thenReturn(100); // mock the row count
+
+        when(service.takeDecision(100, "ATD")).thenReturn(true);
+
+        // Act
+        fileWatcher.checkInputDirectoriesForNewFiles();
+
+        // Assert
+        verify(service).takeDecision(100, "ATD");
+        verify(file, times(1)).getAbsolutePath(); // Ensure method is called once
+    }
+
+    @Test
+    public void testCheckInputDirectoriesForNewFiles_CSVFile() throws Exception {
+        // Arrange
+        String fileName = "testFile.csv";
+        when(file.getName()).thenReturn(fileName);
+        when(file.isFile()).thenReturn(true);
+        when(file.getParentFile()).thenReturn(new File("CC"));
+        when(file.getAbsolutePath()).thenReturn(testDirectory + "/" + fileName);
+
+        CSVParser mockParser = mock(CSVParser.class);
+        List<CSVRecord> records = Arrays.asList(mock(CSVRecord.class), mock(CSVRecord.class));
+        when(mockParser.getRecords()).thenReturn(records);
+
+        when(service.takeDecision(records.size(), "CC")).thenReturn(true);
+
+        // Act
+        fileWatcher.checkInputDirectoriesForNewFiles();
+
+        // Assert
+        verify(service).takeDecision(records.size(), "CC");
+        verify(file, times(1)).getAbsolutePath(); // Ensure method is called once
+    }
+
+    @Test
+    public void testMoveFile() throws IOException {
+        // Arrange
+        Path sourcePath = Paths.get("sourcePath");
+        Path targetPath = Paths.get("targetPath");
+        when(file.getAbsolutePath()).thenReturn(sourcePath.toString());
+
+        // Act
+        fileWatcher.moveFile(sourcePath.toString(), "targetPath");
+
+        // Assert
+        verify(service, times(1)).moveFile(anyString(), anyString()); // Verify move call
+    }
+}
