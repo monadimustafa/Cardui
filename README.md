@@ -1,121 +1,146 @@
-<nb-card accent="danger">
-<nb-card-header class="d-flex flex-row justify-content-between">
-  <h5 class="title-animation title-heading text-uppercase my-auto p-2">Gestion Segment</h5>
-</nb-card-header>
-  <nb-card-body>
-    <div class="row">
+<nb-card accent="primary" class="border-0 shadow rounded-3 overflow-hidden">
+  <!-- 🔥 HEADER PRINCIPAL -->
+  <nb-card-header class="d-flex align-items-center justify-content-between bg-primary text-white p-3">
+    <h5 class="m-0 fw-bold text-uppercase">Gestion Segment</h5>
+    <nb-icon icon="layers-outline" pack="eva" class="fs-4"></nb-icon>
+  </nb-card-header>
+
+  <nb-card-body class="p-4">
+    <div class="row gy-4">
 
       <!-- 🎛️ Colonne gauche - Configuration -->
       <div class="col-md-6">
-        <nb-card class="border shadow-sm mt-3 equal-height-card ">
-          <nb-card-header style="background-color: #3E5858; color: white;">
-            <nb-icon icon="settings-outline"></nb-icon> &nbsp;
+        <nb-card class="shadow-sm rounded-3 border-0">
+          <nb-card-header class="bg-secondary text-white fw-bold">
+            <nb-icon icon="settings-2-outline" pack="eva" class="me-2"></nb-icon>
             Configuration du segment
           </nb-card-header>
 
-          <nb-card-body>
-
-            <label class="form-label fw-bold text-dark">Segment principal</label>
-            <nb-form-field fullWidth>
-              <nb-select fullWidth
-                         placeholder="Choisir un segment"
-                         [(selected)]="selectedSegment"
-                         (selectedChange)="onSegmentChange($event)">
+          <nb-card-body class="p-4">
+            <!-- Segment -->
+            <div class="mb-3">
+              <label class="form-label fw-semibold text-dark">Segment principal</label>
+              <nb-select
+                placeholder="Choisir un segment"
+                [(selected)]="selectedSegment"
+                (selectedChange)="onSegmentChange($event)"
+                status="primary"
+                fullWidth>
                 <nb-option *ngFor="let seg of segments" [value]="seg.id">
                   {{ seg.libelle }}
                 </nb-option>
               </nb-select>
-            </nb-form-field>
+            </div>
 
-            <label class="form-label fw-bold text-dark mt-4">Zone géographique</label>
-            <nb-form-field fullWidth>
-              <nb-select fullWidth
-                         placeholder="Choisir une zone"
-                         [(selected)]="selectedAreaId"
-                         (selectedChange)="onAreaChange($event)">
+            <!-- Zone -->
+            <div class="mb-3">
+              <label class="form-label fw-semibold text-dark">Zone géographique</label>
+              <nb-select
+                placeholder="Choisir une zone"
+                [(selected)]="selectedAreaId"
+                (selectedChange)="onAreaChange($event)"
+                status="primary"
+                fullWidth>
                 <nb-option *ngFor="let area of areas" [value]="area.id">
                   {{ area.libelle }}
                 </nb-option>
               </nb-select>
-            </nb-form-field>
+            </div>
 
-            <label class="form-label fw-bold text-dark mt-4">Champs liés</label>
-            <nb-form-field fullWidth>
-              <nb-select fullWidth
-                         placeholder="Sélectionner des champs"
-                         [(selected)]="selectedFieldIds"
-                         multiple>
+            <!-- Champs liés -->
+            <div>
+              <label class="form-label fw-semibold text-dark">Champs liés</label>
+              <nb-select
+                placeholder="Sélectionner des champs"
+                [(selected)]="selectedFieldIds"
+                multiple
+                status="primary"
+                fullWidth>
                 <nb-option *ngFor="let field of filteredFields" [value]="field.id">
                   {{ field.libelle }}
                 </nb-option>
               </nb-select>
-            </nb-form-field>
-
+            </div>
           </nb-card-body>
         </nb-card>
       </div>
 
-      <!-- 📋 Colonne droite - Tableau de synthèse -->
+      <!-- 📋 Colonne droite - Synthèse -->
       <div class="col-md-6">
-        <nb-card class="shadow-sm mt-3 equal-height-card ">
-
-          <!-- Header -->
-          <nb-card-header style="background-color: #3E5858; color: white;">
-            <nb-icon icon="clipboard-outline"></nb-icon> &nbsp;
-            Synthèse & validation
+        <nb-card class="shadow-sm rounded-3 border-0">
+          <nb-card-header class="bg-secondary text-white fw-bold">
+            <nb-icon icon="clipboard-text-outline" pack="eva" class="me-2"></nb-icon>
+            Synthèse & Validation
           </nb-card-header>
 
-          <!-- Body avec layout vertical -->
-          <nb-card-body class="equal-height-body">
-
-            <div>
-              <!-- TABLEAU -->
-              <table class="table table-hover table-bordered table-sm mb-4">
-                <thead class="table-light">
-                <tr>
-                  <th>Segment</th>
-                  <th>Zone</th>
-                  <th>Champ</th>
-                  <th class="text-center">Actions</th>
-                </tr>
+          <nb-card-body class="p-4">
+            <!-- Tableau -->
+            <div class="table-responsive rounded border">
+              <table class="table table-hover align-middle text-center">
+                <thead class="bg-light text-dark sticky-top">
+                  <tr>
+                    <th>Segment</th>
+                    <th>Zone</th>
+                    <th>Champ</th>
+                    <th>Actions</th>
+                  </tr>
                 </thead>
                 <tbody>
-                <tr *ngFor="let item of summaryTable">
-                  <td>{{ item.segment }}</td>
-                  <td>{{ item.area }}</td>
-                  <td>{{ item.field }}</td>
-                  <td class="deleteIcon text-center">
-                    <nb-icon icon="delete-bin-line"
-                             (click)="onReject(item)"
-                             class="text-danger"
-                             style="cursor: pointer;"></nb-icon>
-                  </td>
-                </tr>
+                  <tr *ngFor="let item of summaryTable">
+                    <td>{{ item.segment }}</td>
+                    <td>{{ item.area }}</td>
+                    <td>{{ item.field }}</td>
+                    <td>
+                      <button nbButton ghost status="danger" size="tiny" (click)="onReject(item)">
+                        <nb-icon icon="trash-2-outline"></nb-icon>
+                      </button>
+                    </td>
+                  </tr>
+                  <tr *ngIf="summaryTable.length === 0">
+                    <td colspan="4" class="text-muted text-center">
+                      Aucune donnée sélectionnée pour le segment choisi.
+                    </td>
+                  </tr>
                 </tbody>
               </table>
-
-              <div *ngIf="summaryTable.length === 0" class="text-muted text-center">
-                Aucune donnée sélectionnée pour le segment choisi.
-              </div>
             </div>
 
-            <!-- BOUTONS collés en bas -->
-            <div class="d-flex justify-content-end gap-3 mt-2">
-              <button nbButton status="success" size="medium" (click)="onValidateAll()" outline>
+            <!-- Boutons actions -->
+            <div class="d-flex justify-content-end gap-2 mt-4">
+              <button nbButton status="success" size="medium" (click)="onValidateAll()" class="rounded-pill">
                 ✅ Valider tout
               </button>
-              <button nbButton status="danger" size="medium" outline (click)="onCancelAll()">
+              <button nbButton status="danger" size="medium" outline (click)="onCancelAll()" class="rounded-pill">
                 ❌ Annuler tout
               </button>
             </div>
-
           </nb-card-body>
         </nb-card>
-
       </div>
 
     </div>
-
   </nb-card-body>
-  <nb-card-footer class="mt-4"></nb-card-footer>
 </nb-card>
+
+
+nb-card {
+  border-radius: 12px;
+}
+
+nb-card-header {
+  font-size: 1rem;
+}
+
+.table th {
+  background-color: #f8f9fa;
+  color: #495057;
+}
+
+.table-hover tbody tr:hover {
+  background-color: #f1f3f5;
+}
+
+button[nbButton] {
+  border-radius: 20px;
+  font-weight: 500;
+}
