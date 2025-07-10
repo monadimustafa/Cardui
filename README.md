@@ -1,6 +1,7 @@
 <nb-card accent="primary" class="border-0 shadow rounded-3 overflow-hidden">
   <!-- 🔥 HEADER PRINCIPAL -->
-  <nb-card-header class="d-flex align-items-center justify-content-between bg-primary text-white p-3">
+  <nb-card-header class="d-flex align-items-center justify-content-between" 
+                  style="background-color: #CE4529; color: #fff; padding: 1rem;">
     <h5 class="m-0 fw-bold text-uppercase">Gestion Segment</h5>
     <nb-icon icon="layers-outline" pack="eva" class="fs-4"></nb-icon>
   </nb-card-header>
@@ -11,7 +12,7 @@
       <!-- 🎛️ Colonne gauche - Configuration -->
       <div class="col-md-6">
         <nb-card class="shadow-sm rounded-3 border-0">
-          <nb-card-header class="bg-secondary text-white fw-bold">
+          <nb-card-header style="background-color: #2A4746; color: #fff;" class="fw-bold">
             <nb-icon icon="settings-2-outline" pack="eva" class="me-2"></nb-icon>
             Configuration du segment
           </nb-card-header>
@@ -68,7 +69,7 @@
       <!-- 📋 Colonne droite - Synthèse -->
       <div class="col-md-6">
         <nb-card class="shadow-sm rounded-3 border-0">
-          <nb-card-header class="bg-secondary text-white fw-bold">
+          <nb-card-header style="background-color: #2A4746; color: #fff;" class="fw-bold">
             <nb-icon icon="clipboard-text-outline" pack="eva" class="me-2"></nb-icon>
             Synthèse & Validation
           </nb-card-header>
@@ -77,7 +78,7 @@
             <!-- Tableau -->
             <div class="table-responsive rounded border">
               <table class="table table-hover align-middle text-center">
-                <thead class="bg-light text-dark sticky-top">
+                <thead style="background-color: #F8F9FA; color: #2A4746;">
                   <tr>
                     <th>Segment</th>
                     <th>Zone</th>
@@ -107,10 +108,12 @@
 
             <!-- Boutons actions -->
             <div class="d-flex justify-content-end gap-2 mt-4">
-              <button nbButton status="success" size="medium" (click)="onValidateAll()" class="rounded-pill">
+              <button nbButton style="background-color: #CE4529; color: #fff; border-radius: 50px;" 
+                      size="medium" (click)="onValidateAll()">
                 ✅ Valider tout
               </button>
-              <button nbButton status="danger" size="medium" outline (click)="onCancelAll()" class="rounded-pill">
+              <button nbButton outline status="danger" size="medium" class="rounded-pill" 
+                      (click)="onCancelAll()">
                 ❌ Annuler tout
               </button>
             </div>
@@ -121,26 +124,3 @@
     </div>
   </nb-card-body>
 </nb-card>
-
-
-nb-card {
-  border-radius: 12px;
-}
-
-nb-card-header {
-  font-size: 1rem;
-}
-
-.table th {
-  background-color: #f8f9fa;
-  color: #495057;
-}
-
-.table-hover tbody tr:hover {
-  background-color: #f1f3f5;
-}
-
-button[nbButton] {
-  border-radius: 20px;
-  font-weight: 500;
-}
