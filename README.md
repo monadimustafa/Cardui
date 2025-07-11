@@ -1,15 +1,25 @@
-getSelectedWeights(area: Area): RisqueWeight[] {
-  const selectedRisqueId = this.selectedRisques[area.id]; // le risque sélectionné pour cet area
-  let weights: RisqueWeight[] = [];
+<!-- Select Risques -->
+<td>
+  <nb-select placeholder="Choisir un risque" 
+             [(selected)]="selectedRisques[area.id]"
+             (selectedChange)="onRisqueChange(area.id, $event)"
+             status="primary"
+             fullWidth>
+    <nb-option *ngFor="let item of area.risqueValueList.items" [value]="item.id">
+      {{ item.libelle }}
+    </nb-option>
+  </nb-select>
+</td>
 
-  area.fieldConfigurations.forEach(fc => {
-    if (fc.risqueValueList && fc.risqueValueList.items) {
-      const selectedRisqueItem = fc.risqueValueList.items.find(item => item.id === selectedRisqueId);
-      if (selectedRisqueItem && selectedRisqueItem.risqueWeights) {
-        weights = weights.concat(selectedRisqueItem.risqueWeights);
-      }
-    }
-  });
-
-  return weights;
-}
+<!-- Select Poids -->
+<td>
+  <nb-select placeholder="Choisir un poids" 
+             [(selected)]="selectedWeights[area.id]"
+             (selectedChange)="onWeightChange(area.id, $event)"
+             status="info"
+             fullWidth>
+    <nb-option *ngFor="let weight of getSelectedWeights(area)" [value]="weight.id">
+      L: {{ weight.weightL }} / ML: {{ weight.weightMl }} / MH: {{ weight.weightMh }}
+    </nb-option>
+  </nb-select>
+</td>
