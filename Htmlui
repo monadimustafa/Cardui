@@ -1,59 +1,162 @@
-  <ng-container *ngFor="let param of bankAccountAgregatDto">
-                        <tr>
-                          <td>{{param.customerNumber}}</td>
-                          <td>{{param.displayName}}</td>
-                          <td>{{param.accountNumber}}</td>
-                          <td>{{param.codeAgence}}</td>
-                          <td><nb-checkbox (checkedChange)="toggle(param, $event)"></nb-checkbox></td>
-                        </tr>
-                        <tr *ngIf="isSelected(param)">
-                          <td colspan="5">
-                            <div class="d-flex">
-                              <input nbInput placeholder="Entrez le motif de cloture du compte selectionné" [(ngModel)]="param.motifCloture" fullWidth>
-                            </div>
-                          </td>
-                        </tr>
-                      </ng-container>
-toggle(account: BankAccountAggregateDto, event: any) {
-    if (event) {
-      this.listSelectedAccount.push(account);
-    } else {
-      this.listSelectedAccount = this.listSelectedAccount.filter(acc => acc.accountNumber !== account.accountNumber);
+package com.socgen.creditbureau.bff.config;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.reactivestreams.Publisher;
+import org.springframework.cloud.gateway.filter.GatewayFilterChain;
+import org.springframework.cloud.gateway.filter.GlobalFilter;
+import org.springframework.core.Ordered;
+import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.core.io.buffer.DataBufferUtils;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.server.reactive.ServerHttpResponse;
+import org.springframework.http.server.reactive.ServerHttpResponseDecorator;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.stereotype.Component;
+import org.springframework.web.server.ServerWebExchange;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
+
+@Component
+public class UserBodyModifierFilter implements GlobalFilter, Ordered {
+    
+    private final ObjectMapper objectMapper;
+    
+    public UserBodyModifierFilter(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
     }
-  }
-  isSelected(account: BankAccountAggregateDto): boolean {
-    return this.listSelectedAccount.some(acc => acc.accountNumber === account.accountNumber);
-  }
-  editRequest() {
-    this.listSelectedAccount.forEach(value => {
-      if(!value){
-        this.showToast('merci de selectionner un compte','Compte','danger');
-      }
-      else{
-        console.log("edit request");
-        console.log(value)
-          const sccRequestDto :  SccRequestDto = {
-            bankAcountAggregateDto : value,
-            motifCloture : value.motifCloture,
-            performer : 'mustapha.bahbah@socgen.com',
-            canal : Canal.AGENCE,
-            attachmentDtos: [],
-            bpmnActivityList: [],
-            editHistoryList: [],
-          }
-          this.generateFile(sccRequestDto);
-          this.demandeService.initRequest(sccRequestDto).pipe(
-            map(response => {
-              this.responseRequest = response;
-              this.initForm();
-              this.isUploading = false;
-              // Handle success
-            }),
-            catchError(err => {
-              // Handle error
-              return of(err);
+    
+    @Override
+    public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        // Récupérer les infos utilisateur d'abord
+        return ReactiveSecurityContextHolder.getContext()
+            .map(securityContext -> securityContext.getAuthentication())
+            .filter(authentication -> authentication instanceof JwtAuthenticationToken)
+            .cast(JwtAuthenticationToken.class)
+            .map(jwt -> {
+                Map<String, String> userInfo = new HashMap<>();
+                userInfo.put("email", (String) jwt.getTokenAttributes().get("email"));
+                userInfo.put("name", (String) jwt.getTokenAttributes().get("name"));
+                userInfo.put("id", (String) jwt.getTokenAttributes().get("sub"));
+                return userInfo;
             })
-          ).subscribe();
-      }
-    })
-  }
+            .defaultIfEmpty(new HashMap<>())
+            .flatMap(userInfo -> {
+                // Si pas d'infos user, continuer normalement
+                if (userInfo.isEmpty() || userInfo.get("email") == null) {
+                    return chain.filter(exchange);
+                }
+                
+                // Décorer la réponse pour modifier le body
+                ServerHttpResponse originalResponse = exchange.getResponse();
+                ServerHttpResponseDecorator decoratedResponse = new ServerHttpResponseDecorator(originalResponse) {
+                    
+                    @Override
+                    public Mono<Void> writeWith(Publisher<? extends DataBuffer> body) {
+                        // Vérifier si c'est du JSON
+                        HttpHeaders headers = originalResponse.getHeaders();
+                        MediaType contentType = headers.getContentType();
+                        
+                        if (contentType == null || !contentType.includes(MediaType.APPLICATION_JSON)) {
+                            return super.writeWith(body);
+                        }
+                        
+                        if (body instanceof Flux) {
+                            Flux<? extends DataBuffer> fluxBody = Flux.from(body);
+                            
+                            return super.writeWith(fluxBody.collectList().flatMap(dataBuffers -> {
+                                // Combiner tous les buffers
+                                DataBuffer joinedBuffer = originalResponse.bufferFactory().join(dataBuffers);
+                                byte[] content = new byte[joinedBuffer.readableByteCount()];
+                                joinedBuffer.read(content);
+                                DataBufferUtils.release(joinedBuffer);
+                                
+                                String originalBody = new String(content, StandardCharsets.UTF_8);
+                                
+                                try {
+                                    // Parser le JSON
+                                    JsonNode jsonNode = objectMapper.readTree(originalBody);
+                                    
+                                    String modifiedBody;
+                                    if (jsonNode.isObject()) {
+                                        ObjectNode objectNode = (ObjectNode) jsonNode;
+                                        
+                                        // Créer l'objet user
+                                        ObjectNode userNode = objectMapper.createObjectNode();
+                                        if (userInfo.get("email") != null) {
+                                            userNode.put("email", userInfo.get("email"));
+                                        }
+                                        if (userInfo.get("name") != null) {
+                                            userNode.put("name", userInfo.get("name"));
+                                        }
+                                        if (userInfo.get("id") != null) {
+                                            userNode.put("id", userInfo.get("id"));
+                                        }
+                                        
+                                        // Ajouter l'objet user à la racine
+                                        objectNode.set("user", userNode);
+                                        modifiedBody = objectMapper.writeValueAsString(objectNode);
+                                        
+                                    } else if (jsonNode.isArray()) {
+                                        // Si c'est un array, wrapper dans un objet
+                                        ObjectNode wrapper = objectMapper.createObjectNode();
+                                        wrapper.set("data", jsonNode);
+                                        
+                                        ObjectNode userNode = objectMapper.createObjectNode();
+                                        if (userInfo.get("email") != null) {
+                                            userNode.put("email", userInfo.get("email"));
+                                        }
+                                        if (userInfo.get("name") != null) {
+                                            userNode.put("name", userInfo.get("name"));
+                                        }
+                                        if (userInfo.get("id") != null) {
+                                            userNode.put("id", userInfo.get("id"));
+                                        }
+                                        wrapper.set("user", userNode);
+                                        
+                                        modifiedBody = objectMapper.writeValueAsString(wrapper);
+                                    } else {
+                                        // Type JSON non supporté, garder l'original
+                                        modifiedBody = originalBody;
+                                    }
+                                    
+                                    byte[] modifiedContent = modifiedBody.getBytes(StandardCharsets.UTF_8);
+                                    
+                                    // Mettre à jour Content-Length
+                                    originalResponse.getHeaders().setContentLength(modifiedContent.length);
+                                    
+                                    DataBuffer buffer = originalResponse.bufferFactory().wrap(modifiedContent);
+                                    return Mono.just(buffer);
+                                    
+                                } catch (Exception e) {
+                                    System.err.println("Erreur modification body JSON: " + e.getMessage());
+                                    e.printStackTrace();
+                                    
+                                    // En cas d'erreur, retourner le contenu original
+                                    DataBuffer buffer = originalResponse.bufferFactory().wrap(content);
+                                    return Mono.just(buffer);
+                                }
+                            }));
+                        }
+                        
+                        return super.writeWith(body);
+                    }
+                };
+                
+                return chain.filter(exchange.mutate().response(decoratedResponse).build());
+            });
+    }
+    
+    @Override
+    public int getOrder() {
+        // Doit s'exécuter après les filtres de routing mais avant l'envoi
+        return -2;
+    }
+}
