@@ -1,34 +1,65 @@
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cloud.gateway.filter.GatewayFilterChain;
+import org.springframework.cloud.gateway.filter.GlobalFilter;
+import org.springframework.core.Ordered;
+import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.security.oauth2.client.*;
+import org.springframework.security.oauth2.client.registration.ClientRegistration;
+import org.springframework.security.oauth2.client.registration.ReactiveClientRegistrationRepository;
+import org.springframework.security.oauth2.core.OAuth2AccessToken;
+import org.springframework.stereotype.Component;
+import org.springframework.web.server.ServerWebExchange;
+import reactor.core.publisher.Mono;
+
 @Component
-@RequiredArgsConstructor
 public class BffTokenRelayFilter implements GlobalFilter, Ordered {
 
-    private final ReactiveClientRegistrationRepository clientRegistrations;
-    private final ServerOAuth2AuthorizedClientRepository authorizedClients;
+    private final ReactiveOAuth2AuthorizedClientManager authorizedClientManager;
+    private final ClientRegistration clientRegistration;
+
+    @Autowired
+    public BffTokenRelayFilter(
+            ReactiveClientRegistrationRepository clientRegistrations,
+            ReactiveOAuth2AuthorizedClientService authorizedClientService) {
+
+        ReactiveOAuth2AuthorizedClientProvider authorizedClientProvider =
+                ReactiveOAuth2AuthorizedClientProviderBuilder.builder()
+                        .clientCredentials()
+                        .build();
+
+        this.authorizedClientManager = new AuthorizedClientServiceReactiveOAuth2AuthorizedClientManager(
+                clientRegistrations, authorizedClientService);
+        this.authorizedClientManager.setAuthorizedClientProvider(authorizedClientProvider);
+
+        // charge la config du client "bff"
+        this.clientRegistration = Mono.from(clientRegistrations.findByRegistrationId("bff")).block();
+    }
 
     @Override
     public int getOrder() {
-        return 200; // après les filtres de sécurité
+        return 200; // après la sécurité
     }
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        // Configure le client OAuth2 "bff"
-        ServerOAuth2AuthorizedClientExchangeFilterFunction oauth =
-                new ServerOAuth2AuthorizedClientExchangeFilterFunction(clientRegistrations, authorizedClients);
-        oauth.setDefaultClientRegistrationId("bff");
+        OAuth2AuthorizeRequest authorizeRequest = OAuth2AuthorizeRequest
+                .withClientRegistrationId("bff")
+                .principal("bff-client") // identifiant technique
+                .build();
 
-        // Utilise ce client pour récupérer le token technique
-        return oauth.authorize(exchange)
-                .flatMap(auth -> {
-                    String token = auth.getAccessToken().getTokenValue();
+        return this.authorizedClientManager.authorize(authorizeRequest)
+                .flatMap(authorizedClient -> {
+                    OAuth2AccessToken accessToken = authorizedClient.getAccessToken();
+                    String tokenValue = accessToken.getTokenValue();
 
-                    // Ajoute ce token dans la requête qui part vers le service distant
+                    // ajoute le header Authorization pour la requête sortante
                     ServerHttpRequest request = exchange.getRequest()
                             .mutate()
-                            .header("Authorization", "Bearer " + token)
+                            .header("Authorization", "Bearer " + tokenValue)
                             .build();
 
                     return chain.filter(exchange.mutate().request(request).build());
-                });
+                })
+                .switchIfEmpty(chain.filter(exchange)); // si pas de token, continue sans
     }
 }
