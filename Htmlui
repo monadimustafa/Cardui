@@ -3,22 +3,24 @@ import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.security.oauth2.client.*;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ReactiveClientRegistrationRepository;
+import org.springframework.security.oauth2.client.web.server.ServerOAuth2AuthorizedClientRepository;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 @Component
-public class BffTokenRelayFilter implements GlobalFilter, Ordered {
+public class BffTokenAndUserFilter implements GlobalFilter, Ordered {
 
     private final ReactiveOAuth2AuthorizedClientManager authorizedClientManager;
-    private final ClientRegistration clientRegistration;
 
     @Autowired
-    public BffTokenRelayFilter(
+    public BffTokenAndUserFilter(
             ReactiveClientRegistrationRepository clientRegistrations,
             ReactiveOAuth2AuthorizedClientService authorizedClientService) {
 
@@ -30,9 +32,6 @@ public class BffTokenRelayFilter implements GlobalFilter, Ordered {
         this.authorizedClientManager = new AuthorizedClientServiceReactiveOAuth2AuthorizedClientManager(
                 clientRegistrations, authorizedClientService);
         this.authorizedClientManager.setAuthorizedClientProvider(authorizedClientProvider);
-
-        // charge la config du client "bff"
-        this.clientRegistration = Mono.from(clientRegistrations.findByRegistrationId("bff")).block();
     }
 
     @Override
@@ -42,24 +41,38 @@ public class BffTokenRelayFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+
+        // 1️⃣ récupère le token OAuth2 client_credentials du BFF
         OAuth2AuthorizeRequest authorizeRequest = OAuth2AuthorizeRequest
                 .withClientRegistrationId("bff")
-                .principal("bff-client") // identifiant technique
+                .principal("bff-client")
                 .build();
 
-        return this.authorizedClientManager.authorize(authorizeRequest)
-                .flatMap(authorizedClient -> {
+        Mono<ServerHttpRequest> modifiedRequestMono = this.authorizedClientManager.authorize(authorizeRequest)
+                .map(authorizedClient -> {
                     OAuth2AccessToken accessToken = authorizedClient.getAccessToken();
-                    String tokenValue = accessToken.getTokenValue();
-
-                    // ajoute le header Authorization pour la requête sortante
                     ServerHttpRequest request = exchange.getRequest()
                             .mutate()
-                            .header("Authorization", "Bearer " + tokenValue)
+                            .header("Authorization", "Bearer " + accessToken.getTokenValue())
                             .build();
-
-                    return chain.filter(exchange.mutate().request(request).build());
+                    return request;
                 })
-                .switchIfEmpty(chain.filter(exchange)); // si pas de token, continue sans
+                .defaultIfEmpty(exchange.getRequest());
+
+        // 2️⃣ récupère l'email de l'utilisateur si connecté
+        Mono<ServerHttpRequest> finalRequest = modifiedRequestMono.flatMap(request ->
+                ReactiveSecurityContextHolder.getContext()
+                        .filter(c -> c.getAuthentication() != null)
+                        .map(c -> {
+                            if (c.getAuthentication() instanceof JwtAuthenticationToken jwt) {
+                                String userEmail = (String) jwt.getTokenAttributes().get("email");
+                                return request.mutate().header("x-user", userEmail).build();
+                            }
+                            return request;
+                        })
+                        .defaultIfEmpty(request)
+        );
+
+        return finalRequest.flatMap(request -> chain.filter(exchange.mutate().request(request).build()));
     }
 }
